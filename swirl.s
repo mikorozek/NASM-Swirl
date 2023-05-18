@@ -4,7 +4,6 @@ usmask  dq 0x7FFFFFFFFFFFFFFF
 pi      dq 3.14159265358979323846
 
 
-
 section .text
 global  swirl_prologue
 
@@ -34,8 +33,17 @@ swirl_prologue:
         push        xmm14
         push        xmm15
 
+; for this algorithm these registers are going to contain following values:
+; xmm1 - operation register for double precision float values, something like RAX
+; xmm2 - width/2 in double
+; xmm3 - height/2 in double
+; xmm4 - distance from current row to center (height/2)
+; xmm5 - distance from current pixel in row to center (width/2)
+; xmm6 - original angle value (result of arcus tangens)
+
+
+
 swirl:
-        movsd       xmm0
         cvtsi2sd    rdx, xmm1
         divsd       xmm1, qword [half]
         movsd       xmm2, xmm1              ; now xmm2 contains width/2
@@ -55,6 +63,7 @@ height_loop:
 
         mov         r9, 0                   ; r9 is iterator, if r9 equals width - > the loop ends
 
+
 width_loop:
         cmp         r9, rdx
         je          height_loop
@@ -68,12 +77,24 @@ width_loop:
         movsd       xmm6, xmm4
         movsd       xmm7, xmm5
 
-        fabs        xmm6
-        fabs        xmm7
+        andpd       xmm6, qword [usmask]    ; we take absolute value of the xmm4 and xmm5
+        andpd       xmm7, qword [usmask]
 
-        divsd       xmm6, xmm7
+        push        xmm6                    ; we push height/2 and width/2 so we can copy theirs values to register stack
+        push        xmm7
 
-        sub         rsp, 8
+        fld         [rsp + 8]               ; we load height/2 and width/2 to the register stack so we can perform fpatan
+        fld         [rsp + 16]
+
+        fpatan                              ; function that is respinsible for counting the arcus tangens
+
+        fstp        qword [rsp]                   ; we push the value from ST(0) that is the result of FPATAN
+
+        movsd       xmm6, [rsp]             ; now we have the original angle value in the xmm6
+
+        pop         xmm7
+        pop         xmm6                    ; we delete the xmm7 and xmm6 values from the stack
+
 
 
 zero_dist:
