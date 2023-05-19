@@ -40,7 +40,6 @@ swirl_prologue:
 ; xmm6 - original angle value (result of arcus tangens)
 
 
-
 swirl:
         cvtsi2sd    xmm1, rdx
         divsd       xmm1, qword [dtwo]
@@ -70,7 +69,7 @@ width_loop:
         subsd       xmm5, xmm2              ; xmm5 is now distance from pixel's x to center (width/2)
 
         movsd       xmm1, qword [zero]
-        comisd      xmm5, 0                 ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
+        comisd      xmm5, xmm1              ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
         jnz         not_zero_case           ; if not zero then jump to regular case
 
         movsd       xmm6, qword [pi]        ; move pi value to xmm6 cause we will make angle pi * 0.5 or pi * 1.5
@@ -105,7 +104,7 @@ not_zero_case:
 
         fstp        qword [rsp]             ; we push the value from ST(0) that is the result of FPATAN
 
-        movsd       xmm6, [rsp]             ; now we have the original angle value in radians in xmm6
+        movsd       xmm6, qword [rsp]       ; now we have the original angle value in radians in xmm6
 
         pop         xmm7
         pop         xmm6                    ; we delete the xmm7 and xmm6 values from the stack
@@ -140,18 +139,19 @@ relyltz:
         addsd       xmm6, qword [pi]
 
 width_loop_continue:
-        mulsd       xmm4, xmm4
+        mulsd       xmm4, xmm4              ; we perform sqrt[(height/2)^2 + (width/2)^2)
         mulsd       xmm5, xmm5
         addsd       xmm4, xmm5
 
-        push        xmm4
+        push        xmm4                    ; now xmm4 contains value of [(height/2)^2 + (width/2)^2]
 
-        fld         [rsp + 8]
+        fld         [rsp + 8]               ; we load the xmm4 value to register stack st(0) = xmm4
 
-        fsqrt
+        fsqrt                               ; we perform the sqrt operation and
 
         fstp        qword [rsp]
-        movsd
+        movsd       xmm4, qword [rsp]
+
 
 
 
