@@ -42,11 +42,11 @@ swirl_prologue:
 
 
 swirl:
-        cvtsi2sd    rdx, xmm1
+        cvtsi2sd    xmm1, rdx
         divsd       xmm1, qword [dtwo]
         movsd       xmm2, xmm1              ; now xmm2 contains width/2
 
-        cvtsi2sd    rcx, xmm1
+        cvtsi2sd    xmm1, rcx
         divsd       xmm1, qword [dtwo]
         movsd       xmm3, xmm1              ; now xmm3 contains height/2
 
@@ -56,7 +56,7 @@ height_loop:
         cmp         r8, rcx
         je          finish
 
-        cvtsi2sd    r8, xmm4
+        cvtsi2sd    xmm4, r8
         subsd       xmm4, xmm3              ; xmm4 is now distance from pixel's y to center (height/2)
 
         mov         r9, 0                   ; r9 is iterator, if r9 equals width - > the loop ends
@@ -64,9 +64,9 @@ height_loop:
 
 width_loop:
         cmp         r9, rdx
-        je          height_loop
+        je          height_loop_finish
 
-        cvtsi2sd    r9, xmm5
+        cvtsi2sd    xmm5, r9
         subsd       xmm5, xmm2              ; xmm5 is now distance from pixel's x to center (width/2)
 
         movsd       xmm1, qword [zero]
@@ -89,8 +89,8 @@ zerocyltz:
         jmp         width_loop_continue     ; continue the loop
 
 not_zero_case:
-        movsd       xmm6, xmm4              ; move xmm4, xmm5 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
-        movsd       xmm7, xmm5
+        movsd       xmm6, xmm5              ; move xmm4, xmm5 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
+        movsd       xmm7, xmm4
 
         andpd       xmm6, qword [usmask]    ; we take absolute value of the xmm4 and xmm5
         andpd       xmm7, qword [usmask]
@@ -140,6 +140,19 @@ relyltz:
         addsd       xmm6, qword [pi]
 
 width_loop_continue:
+        mulsd       xmm4, xmm4
+        mulsd       xmm5, xmm5
+        addsd       xmm4, xmm5
+
+        push        xmm4
+
+        fld         [rsp + 8]
+
+        fsqrt
+
+        fstp        qword [rsp]
+        movsd
+
 
 
 
