@@ -56,8 +56,9 @@ height_loop:
         cmp         r8, rcx
         je          finish
 
-        cvtsi2sd    xmm4, r8
-        subsd       xmm4, xmm3              ; xmm4 is now distance from pixel's y to center (height/2)
+        cvtsi2sd    xmm8, r8
+        movsd       xmm4, xmm3
+        subsd       xmm4, xmm8              ; xmm4 is now distance from pixel's y to center (height/2)
 
         mov         r9, 0                   ; r9 is iterator, if r9 equals width - > the loop ends
 
@@ -187,24 +188,44 @@ width_loop_continue:
         add         r11, r13
         mov         r12, r11
         mov         r11, rcx
+        sub         r11, r12
 
+        cmp         r10, 0
+        jl          srcxltz
 
+        cmp         r10, rdx
+        jge         srcxgetw
 
+        jmp         srcycond
 
+srcxltz:
+        mov         r10, 0
+        jmp         srcycond
 
+srcxgetw:
+        mov         r10, rdx
+        sub         r10, 1
 
+srcycond:
+        cmp         r11, 0
+        jl          srcyltz
 
+        cmp         r11, rcx
+        jge         srcygeth
 
+        jmp         width_loop_finish
 
+srcyltz:
+        mov         r11, 0
+        jmp         width_loop_finish
 
+srcygeth:
+        mov         r11, rcx
+        sub         r11, 1
 
+width_loop_finish:
 
-
-
-
-
-
-finish:
+height_loop_finish:
 
 swirl_epilogue:
         pop         r15
