@@ -1,6 +1,7 @@
 section .data
 dtwo                dq 2.0
 donehalf            dq 1.5
+done                dq 1.0
 dhalf               dq 0.5
 zero                dq 0.0
 usmask              dq 0x7FFFFFFFFFFFFFFF
@@ -68,8 +69,7 @@ width_loop:
         cvtsi2sd    xmm5, r9
         subsd       xmm5, xmm2              ; xmm5 is now distance from pixel's x to center (width/2)
 
-        movsd       xmm1, qword [zero]
-        comisd      xmm5, xmm1              ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
+        movsd       xmm1, qword [zero]      ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
         jnz         not_zero_case           ; if not zero then jump to regular case
 
         movsd       xmm6, qword [pi]        ; move pi value to xmm6 cause we will make angle pi * 0.5 or pi * 1.5
@@ -77,28 +77,30 @@ width_loop:
         comisd      xmm4, xmm1              ; this is zero case so zero case distance from column to center lesser than 0 so its down side
         jl          zerocyltz
 
-        mulsd       xmm6, qword [donehalf]  ; we create pi/2 and pass it to original angle
+        mulsd       xmm6, qword [dhalf]  ; we create pi/2 and pass it to original angle
 
         jmp         width_loop_continue     ; continue the loop
 
 zerocyltz:
 
-        mulsd       xmm6, qword [dhalf]     ; we create 3pi/2 and pass it to original angle
+        mulsd       xmm6, qword [donehalf]     ; we create 3pi/2 and pass it to original angle
 
         jmp         width_loop_continue     ; continue the loop
 
 not_zero_case:
-        movsd       xmm6, xmm5              ; move xmm4, xmm5 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
-        movsd       xmm7, xmm4
+        movsd       xmm6, xmm4              ; move xmm5, xmm4 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
+        movsd       xmm7, xmm5
 
         andpd       xmm6, qword [usmask]    ; we take absolute value of the xmm4 and xmm5
         andpd       xmm7, qword [usmask]
 
-        push        xmm6                    ; we push absolute height/2 and absolute width/2 so we can copy theirs values to register stack
-        push        xmm7
+        sub         rsp, 16
 
-        fld         [rsp + 8]               ; we load height/2 and width/2 to the register stack so we can perform fpatan
-        fld         [rsp + 16]
+        movsd       [rsp], xmm6
+        movsd       [rsp + 8], xmm7
+
+        fld         qword [rsp]               ; we load height/2 and width/2 to the register stack so we can perform fpatan
+        fld         qword [rsp + 8]
 
         fpatan                              ; function that is responsible for counting the arcus tangens
 
@@ -106,8 +108,7 @@ not_zero_case:
 
         movsd       xmm6, qword [rsp]       ; now we have the original angle value in radians in xmm6
 
-        pop         xmm7
-        pop         xmm6                    ; we delete the xmm7 and xmm6 values from the stack
+        add         rsp, 16
 
         comisd      xmm5, xmm1              ; if distance from pixel's x to center is greater than 0 it will be 1st and 4th quarters of UV space
 
@@ -142,15 +143,61 @@ width_loop_continue:
         mulsd       xmm4, xmm4              ; we perform sqrt[(height/2)^2 + (width/2)^2)
         mulsd       xmm5, xmm5
         addsd       xmm4, xmm5
+        sqrtsd      xmm4, xmm4
 
-        push        xmm4                    ; now xmm4 contains value of [(height/2)^2 + (width/2)^2]
+        movsd       xmm5, qword [dtwo]
+        mulsd       xmm5, xmm5
+        divsd       xmm5, qword [pi]
+        mulsd       xmm0, xmm4
+        addsd       xmm0, xmm5
+        movsd       xmm7, qword [done]
+        divsd       xmm7, xmm0
+        addsd       xmm6, xmm7
 
-        fld         [rsp + 8]               ; we load the xmm4 value to register stack st(0) = xmm4
-
-        fsqrt                               ; we perform the sqrt operation and
-
+        sub         rsp, 16                  ; calculate the cos of the new angle
+        movsd       [rsp], xmm6
+        fld         qword [rsp]
+        fcos
         fstp        qword [rsp]
-        movsd       xmm4, qword [rsp]
+        movsd       xmm7, qword [rsp]
+        add         rsp, 16
+
+        mulsd       xmm7, xmm4
+        addsd       xmm7, qword [half]
+        roundsd     xmm7, xmm7, 1           ; we store the integer value of src x in the r10
+        cvttsd2si   r10, xmm7
+
+        sub         rsp, 16                 ; calculate the sin of the new angle
+        movsd       [rsp], xmm6
+        fld         qword [rsp]
+        fsin
+        fstp        qword [rsp]
+        movsd       xmm7, qword [rsp]
+        add         rsp, 16
+
+        mulsd       xmm7, xmm4
+        addsd       xmm7, qword [half]
+        roundsd     xmm7, xmm7, 1
+        cvttsd2si   r11, xmm7
+
+        cvttsd2si   r12, xmm2
+        cvttsd2si   r13, xmm3
+
+        add         r10, r12
+        add         r11, r13
+        mov         r12, r11
+        mov         r11, rcx
+
+
+
+
+
+
+
+
+
+
+
 
 
 
