@@ -21,16 +21,14 @@ global  swirl_prologue
 swirl_prologue:
         push        rbp
         mov         rbp, rsp
-        push        xmm6
-        push        xmm7
-        push        xmm8
-        push        xmm9
-        push        xmm10
-        push        xmm11
-        push        xmm12
-        push        xmm13
-        push        xmm14
-        push        xmm15
+        push        r12
+        push        r13
+        sub         rsp, 16
+        movdqu      [rsp], xmm6
+        sub         rsp, 16
+        movdqu      [rsp], xmm7
+        sub         rsp, 16
+        movdqu      [rsp], xmm8
 
 ; for this algorithm these registers are going to contain following values:
 ; xmm1 - operation register for double precision float values, something like RAX
@@ -224,12 +222,32 @@ srcygeth:
         sub         r11, 1
 
 width_loop_finish:
+        mov         rax, r11
+        imul        rax, rdx
+        add         rax, r10
+        imul        rax, 3
+
+        mov         r10, rax
+
+        movzx       ax, word [rdi + r10]
+        mov         r11b, byte [rdi + r10 + 2]
+
+        mov         word [rsi], ax
+        mov         byte [rsi + 2], r11b
+
+        add         r9, 1
+        jmp         width_loop
 
 height_loop_finish:
+        add         r8, 1
+        jmp         height_loop
 
 swirl_epilogue:
-        pop         r15
-        pop         r14
+        movdqu      xmm8, [rsp]
+        add         rsp, 16
+        movdqu      xmm7, [rsp]
+        add         rsp, 16
+        movdqu      xmm6, [rsp]
         pop         r13
         pop         r12
         pop         rbx
