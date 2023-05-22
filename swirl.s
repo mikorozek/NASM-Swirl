@@ -4,12 +4,12 @@ donehalf            dq 1.5
 done                dq 1.0
 dhalf               dq 0.5
 zero                dq 0.0
-usmask              dq 0x7FFFFFFFFFFFFFFF
+usmask              dq 0x00000000000000007FFFFFFFFFFFFFFF
 pi                  dq 3.14159265358979323846
 
 
 section .text
-global  swirl_prologue
+global swirl
 
 ; rdi - pointer to the origin pixel array
 ; rsi - poitner to the copy pixel array
@@ -18,17 +18,17 @@ global  swirl_prologue
 ; xmm0 - factor
 
 
-swirl_prologue:
+swirl:
         push        rbp
         mov         rbp, rsp
         push        r12
         push        r13
         sub         rsp, 16
-        movdqu      [rsp], xmm6
+        movaps      [rsp], xmm6
         sub         rsp, 16
-        movdqu      [rsp], xmm7
+        movaps      [rsp], xmm7
         sub         rsp, 16
-        movdqu      [rsp], xmm8
+        movaps      [rsp], xmm8
 
 ; for this algorithm these registers are going to contain following values:
 ; xmm1 - operation register for double precision float values, something like RAX
@@ -39,20 +39,20 @@ swirl_prologue:
 ; xmm6 - original angle value (result of arcus tangens)
 
 
-swirl:
+swirl_continue:
         cvtsi2sd    xmm1, rdx
-        divsd       xmm1, qword [dtwo]
+        divsd       xmm1, qword [rel dtwo]
         movsd       xmm2, xmm1              ; now xmm2 contains width/2
 
         cvtsi2sd    xmm1, rcx
-        divsd       xmm1, qword [dtwo]
+        divsd       xmm1, qword [rel dtwo]
         movsd       xmm3, xmm1              ; now xmm3 contains height/2
 
         mov         r8, 0                   ; r8 is iterator, if r8 equals height - > the loop ends
 
 height_loop:
         cmp         r8, rcx
-        je          finish
+        je          swirl_epilogue
 
         cvtsi2sd    xmm8, r8
         movsd       xmm4, xmm3
@@ -68,21 +68,21 @@ width_loop:
         cvtsi2sd    xmm5, r9
         subsd       xmm5, xmm2              ; xmm5 is now distance from pixel's x to center (width/2)
 
-        movsd       xmm1, qword [zero]      ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
+        movsd       xmm1, qword [rel zero]      ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
         jnz         not_zero_case           ; if not zero then jump to regular case
 
-        movsd       xmm6, qword [pi]        ; move pi value to xmm6 cause we will make angle pi * 0.5 or pi * 1.5
+        movsd       xmm6, qword [rel pi]        ; move pi value to xmm6 cause we will make angle pi * 0.5 or pi * 1.5
 
         comisd      xmm4, xmm1              ; this is zero case so zero case distance from column to center lesser than 0 so its down side
         jl          zerocyltz
 
-        mulsd       xmm6, qword [dhalf]  ; we create pi/2 and pass it to original angle
+        mulsd       xmm6, qword [rel dhalf]  ; we create pi/2 and pass it to original angle
 
         jmp         width_loop_continue     ; continue the loop
 
 zerocyltz:
 
-        mulsd       xmm6, qword [donehalf]     ; we create 3pi/2 and pass it to original angle
+        mulsd       xmm6, qword [rel donehalf]     ; we create 3pi/2 and pass it to original angle
 
         jmp         width_loop_continue     ; continue the loop
 
@@ -90,8 +90,8 @@ not_zero_case:
         movsd       xmm6, xmm4              ; move xmm5, xmm4 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
         movsd       xmm7, xmm5
 
-        andpd       xmm6, qword [usmask]    ; we take absolute value of the xmm4 and xmm5
-        andpd       xmm7, qword [usmask]
+        andpd       xmm6, qword [rel usmask]    ; we take absolute value of the xmm4 and xmm5
+        andpd       xmm7, qword [rel usmask]
 
         sub         rsp, 16
 
@@ -118,7 +118,7 @@ not_zero_case:
         jl          relyltz
 
         movsd       xmm1, xmm6              ; the case that is left is the 2nd quarter of UV space
-        movsd       xmm6, qword [pi]        ; distance from pixel's x to center is lesser than zero and from pixel's y to center is bigger than zero
+        movsd       xmm6, qword [rel pi]        ; distance from pixel's x to center is lesser than zero and from pixel's y to center is bigger than zero
         subsd       xmm6, xmm1              ; we make pi - angle operation
 
         jmp         width_loop_continue
@@ -129,14 +129,14 @@ relxgtz:
         jz          width_loop_continue
 
         movsd       xmm1, xmm6              ; in this case the pixel is in the 4th quarter of UV space so we make 2 pi - angle
-        movsd       xmm6, qword [pi]
-        mulsd       xmm6, qword [dtwo]
+        movsd       xmm6, qword [rel pi]
+        mulsd       xmm6, qword [rel dtwo]
         subsd       xmm6, xmm1
 
         jmp         width_loop_continue
 
 relyltz:
-        addsd       xmm6, qword [pi]
+        addsd       xmm6, qword [rel pi]
 
 width_loop_continue:
         mulsd       xmm4, xmm4              ; we perform sqrt[(height/2)^2 + (width/2)^2)
@@ -144,12 +144,12 @@ width_loop_continue:
         addsd       xmm4, xmm5
         sqrtsd      xmm4, xmm4
 
-        movsd       xmm5, qword [dtwo]
+        movsd       xmm5, qword [rel dtwo]
         mulsd       xmm5, xmm5
-        divsd       xmm5, qword [pi]
+        divsd       xmm5, qword [rel pi]
         mulsd       xmm0, xmm4
         addsd       xmm0, xmm5
-        movsd       xmm7, qword [done]
+        movsd       xmm7, qword [rel done]
         divsd       xmm7, xmm0
         addsd       xmm6, xmm7
 
@@ -162,7 +162,7 @@ width_loop_continue:
         add         rsp, 16
 
         mulsd       xmm7, xmm4
-        addsd       xmm7, qword [half]
+        addsd       xmm7, qword [rel dhalf]
         roundsd     xmm7, xmm7, 1           ; we store the integer value of src x in the r10
         cvttsd2si   r10, xmm7
 
@@ -175,7 +175,7 @@ width_loop_continue:
         add         rsp, 16
 
         mulsd       xmm7, xmm4
-        addsd       xmm7, qword [half]
+        addsd       xmm7, qword [rel dhalf]
         roundsd     xmm7, xmm7, 1
         cvttsd2si   r11, xmm7
 
@@ -229,13 +229,14 @@ width_loop_finish:
 
         mov         r10, rax
 
-        movzx       ax, word [rdi + r10]
+        movzx       eax, word [rdi + r10]
         mov         r11b, byte [rdi + r10 + 2]
 
         mov         word [rsi], ax
         mov         byte [rsi + 2], r11b
 
         add         r9, 1
+        add         rsi, 3
         jmp         width_loop
 
 height_loop_finish:
@@ -243,15 +244,14 @@ height_loop_finish:
         jmp         height_loop
 
 swirl_epilogue:
-        movdqu      xmm8, [rsp]
+        movaps      xmm8, [rsp]
         add         rsp, 16
-        movdqu      xmm7, [rsp]
+        movaps      xmm7, [rsp]
         add         rsp, 16
-        movdqu      xmm6, [rsp]
+        movaps      xmm6, [rsp]
         pop         r13
         pop         r12
         pop         rbx
         mov         rsp, rbp
         pop         rbp
         ret
-

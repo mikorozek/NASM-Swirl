@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -I/usr/include/SDL2
+CFLAGS = -Wall -g -I/usr/include/SDL2
 LDFLAGS = -lSDL2
 
 

@@ -119,6 +119,8 @@ int main(int argc, char *argv[]) {
       fseek(inptr, padding, SEEK_CUR);
   }
 
+  swirl(origin_pixel_array, copy_pixel_array, width, height, 0.05);
+
   displayResult(copy_pixel_array, width, height);
 
   return 0;
