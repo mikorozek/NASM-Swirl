@@ -4,7 +4,7 @@ donehalf            dq 1.5
 done                dq 1.0
 dhalf               dq 0.5
 zero                dq 0.0
-usmask              dq 0x00000000000000007FFFFFFFFFFFFFFF
+usmask              dq 0x7FFFFFFFFFFFFFFF
 pi                  dq 3.14159265358979323846
 
 
@@ -90,16 +90,18 @@ not_zero_case:
         movsd       xmm6, xmm4              ; move xmm5, xmm4 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
         movsd       xmm7, xmm5
 
-        andpd       xmm6, qword [rel usmask]    ; we take absolute value of the xmm4 and xmm5
-        andpd       xmm7, qword [rel usmask]
+        movsd       xmm8, qword [rel usmask]
 
-        sub         rsp, 16
+        andpd       xmm6, xmm8    ; we take absolute value of the xmm4 and xmm5
+        andpd       xmm7, xmm8
 
-        movsd       [rsp], xmm6
-        movsd       [rsp + 8], xmm7
+        sub         rsp, 32
+
+        movsd       qword [rsp], xmm6
+        movsd       qword [rsp + 16], xmm7
 
         fld         qword [rsp]               ; we load height/2 and width/2 to the register stack so we can perform fpatan
-        fld         qword [rsp + 8]
+        fld         qword [rsp + 16]
 
         fpatan                              ; function that is responsible for counting the arcus tangens
 
@@ -107,7 +109,7 @@ not_zero_case:
 
         movsd       xmm6, qword [rsp]       ; now we have the original angle value in radians in xmm6
 
-        add         rsp, 16
+        add         rsp, 32
 
         comisd      xmm5, xmm1              ; if distance from pixel's x to center is greater than 0 it will be 1st and 4th quarters of UV space
 
@@ -147,10 +149,11 @@ width_loop_continue:
         movsd       xmm5, qword [rel dtwo]
         mulsd       xmm5, xmm5
         divsd       xmm5, qword [rel pi]
-        mulsd       xmm0, xmm4
-        addsd       xmm0, xmm5
+        movsd       xmm8, xmm4
+        mulsd       xmm8, xmm0
+        addsd       xmm8, xmm5
         movsd       xmm7, qword [rel done]
-        divsd       xmm7, xmm0
+        divsd       xmm7, xmm8
         addsd       xmm6, xmm7
 
         sub         rsp, 16                  ; calculate the cos of the new angle
@@ -229,7 +232,7 @@ width_loop_finish:
 
         mov         r10, rax
 
-        movzx       eax, word [rdi + r10]
+        movzx       ax, word [rdi + r10]
         mov         r11b, byte [rdi + r10 + 2]
 
         mov         word [rsi], ax

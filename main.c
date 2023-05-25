@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
   // Get image's dimensions
   int height = abs(bitmap_info_header.biHeight);
   int width = bitmap_info_header.biWidth;
-  RGBTRIPLE* origin_pixel_array = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE));
+  RGBTRIPLE* origin_pixel_array = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE*));
 
   RGBTRIPLE* copy_pixel_array = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE*));
 
