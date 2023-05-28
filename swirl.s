@@ -34,7 +34,7 @@ swirl:
 ; xmm1 - operation register for double precision float values, something like RAX
 ; xmm2 - width/2 in double
 ; xmm3 - height/2 in double
-; xmm4 - relY 
+; xmm4 - relY
 ; xmm5 - relX
 ; xmm6 - original angle value (result of arcus tangens)
 
@@ -48,25 +48,36 @@ swirl_continue:
         divsd       xmm1, qword [rel dtwo]
         movsd       xmm3, xmm1              ; now xmm3 contains centerY
 
-        mov         r8, 0                   ; r8 is iterator, if r8 equals height - > the loop ends
+        mov         r9, rcx                   ; r8 is iterator, if r8 equals height - > the loop end
+        imul        r9, rdx
 
-height_loop:
-        cmp         r8, rcx
+        mov         r8, 0
+
+pixel_loop:
+        cmp         r8, r9
         je          swirl_epilogue
 
-        cvtsi2sd    xmm8, r8
-        movsd       xmm4, xmm3
-        subsd       xmm4, xmm8              ; xmm4 is now rely (centerY)
+        ; Assumptions: r8 contains px, rdx contains width
 
-        mov         r9, 0                   ; r9 is iterator, if r9 equals width - > the loop ends
+        mov         r10, rdx       ; Store the original value of rdx into r10
 
+        ; Compute x = px % width
+        mov         rax, r8        ; Move px to rax
+        xor         rdx, rdx       ; Clear rdx because rdx:rax is divided
+        div         r10            ; Divide rax by r10 (width). Quotient in rax, remainder in rdx.
+        cvtsi2sd    xmm4, rdx     ; Convert remainder to double and store in xmm4
 
-width_loop:
-        cmp         r9, rdx
-        je          height_loop_finish
+        ; Compute y = px / width
+        mov         rax, r8        ; Move px to rax again
+        xor         rdx, rdx       ; Clear rdx again
+        div         r10            ; Divide rax by r10 (width). Quotient in rax, remainder in rdx.
+        cvtsi2sd    xmm5, rax     ; Convert quotient to double and store in xmm5
 
-        cvtsi2sd    xmm5, r9
-        subsd       xmm5, xmm2              ; xmm5 is now relx (width/2)
+        mov         rdx, r10       ; Restore the original value of rdx from r10
+
+        subsd       xmm4, xmm2
+        subsd       xmm5, xmm3
+
 
         movsd       xmm1, qword [rel zero]      ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
         jnz         not_zero_case           ; if not zero then jump to regular case
@@ -216,17 +227,17 @@ srcycond:
         cmp         r11, rcx
         jge         srcygeth
 
-        jmp         width_loop_finish
+        jmp         pixel_loop_finish
 
 srcyltz:
         mov         r11, 0
-        jmp         width_loop_finish
+        jmp         pixel_loop_finish
 
 srcygeth:
         mov         r11, rcx
         sub         r11, 1
 
-width_loop_finish:
+pixel_loop_finish:
         mov         rax, r11
         imul        rax, rdx
         add         rax, r10
@@ -241,12 +252,8 @@ width_loop_finish:
         mov         byte [rsi + 2], r11b
         add         rsi, 3
 
-        add         r9, 1
-        jmp         width_loop
-
-height_loop_finish:
-        add         r8, 1
-        jmp         height_loop
+        inc         r8
+        jmp         pixel_loop
 
 swirl_epilogue:
         movaps      xmm8, [rsp]
