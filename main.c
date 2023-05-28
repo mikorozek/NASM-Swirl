@@ -77,7 +77,7 @@ void displayResult(RGBTRIPLE* pixelArray, int width, int height) {
 
 void initDefaultSwirlFactor(double* swirlFactor)
 {
-    *swirlFactor = 0.25;
+    *swirlFactor = 0.005;
 }
 
 
@@ -140,8 +140,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Memory allocation for pixelArrayCopy failed\n");
         exit(1);
     }
-
-    memcpy(pixelArrayCopy, pixelArray, height * width * sizeof(RGBTRIPLE));
 
     double swirlFactor;
     initDefaultSwirlFactor(&swirlFactor);

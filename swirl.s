@@ -237,12 +237,9 @@ width_loop_finish:
         mov         ax, word [rdi + r10]
         mov         r11b, byte [rdi + r10 + 2]
 
-        mov         r10, r8
-        imul        r10, rdx
-        add         r10, r9
-        imul        r10, 3
-        mov         word [rsi + r10], ax
-        mov         byte [rsi + r10 + 2], r11b
+        mov         word [rsi], ax
+        mov         byte [rsi + 2], r11b
+        add         rsi, 3
 
         add         r9, 1
         jmp         width_loop
