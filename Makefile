@@ -12,7 +12,7 @@ main.o: main.c
 
 
 swirl.o: swirl.s
-	nasm -f elf64 swirl.s -o swirl.o
+	nasm -g -f elf64 swirl.s -o swirl.o
 
 clean:
 	rm -rf *.o swirl

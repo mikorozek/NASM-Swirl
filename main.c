@@ -1,13 +1,10 @@
 #define _USE_MATH_DEFINES
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdint.h>
 #include "swirl.h"
-#include "bmp.h"
 #include <SDL2/SDL.h>
 #include <stdbool.h>
-
-
 
 void displayResult(RGBTRIPLE* pixelArray, int width, int height) {
     // Create a window
@@ -38,10 +35,13 @@ void displayResult(RGBTRIPLE* pixelArray, int width, int height) {
     }
 
     // Create a buffer for flipped rows
+    // Create a buffer for flipped rows
     RGBTRIPLE* flippedBuffer = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE));
     for (int i = 0; i < height; i++) {
-        memcpy(&flippedBuffer[i * width], &pixelArray[(height - i - 1) * width], width * sizeof(RGBTRIPLE));
+        for (int j = 0; j < width; j++) {
+            flippedBuffer[i * width + j] = pixelArray[(height - i - 1) * width + j];
     }
+}
 
     // Update the texture with pixel data
     SDL_UpdateTexture(texture, NULL, flippedBuffer, width * sizeof(RGBTRIPLE));
@@ -74,54 +74,81 @@ void displayResult(RGBTRIPLE* pixelArray, int width, int height) {
     SDL_Quit();
 }
 
-int main(int argc, char *argv[]) {
-  if (argc != 3) {
-    printf("Usage: %s <image_path> <swirl_factor>\n", argv[0]);
-    return 1;
-  }
 
-  char *input_file = argv[1];
+void initDefaultSwirlFactor(double* swirlFactor)
+{
+    *swirlFactor = 0.25;
+}
 
-  // Open input file
-  FILE *inptr = fopen(input_file, "r");
-  if (inptr == NULL)
-  {
-      printf("Error! Cannot open %s.\n", input_file);
-      return 4;
-  }
 
-  // Read infile's BITMAPFILEHEADER
-  BITMAPFILEHEADER bitmap_file_header;
-  fread(&bitmap_file_header, sizeof(BITMAPFILEHEADER), 1, inptr);
+int main(int argc, char *argv[])
+{
+    if (argc != 2)
+    {
+        printf("Usage: %s <imagePath>\n", argv[0]);
+        return 1;
+    }
 
-  // Read infile's BITMAPINFOHEADER
-  BITMAPINFOHEADER bitmap_info_header;
-  fread(&bitmap_info_header, sizeof(BITMAPINFOHEADER), 1, inptr);
+    char* inputFile = argv[1];
 
-  // Get image's dimensions
-  int height = abs(bitmap_info_header.biHeight);
-  int width = bitmap_info_header.biWidth;
-  RGBTRIPLE* origin_pixel_array = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE*));
+    // Open input file
+    FILE *inptr = fopen(inputFile, "r");
+    if (inptr == NULL)
+    {
+        printf("Could not open %s.\n", inputFile);
+        return 4;
+    }
 
-  RGBTRIPLE* copy_pixel_array = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE*));
+    // Read infile's BITMAPFILEHEADER
+    BITMAPFILEHEADER bitmapFileheader;
+    fread(&bitmapFileheader, sizeof(BITMAPFILEHEADER), 1, inptr);
 
-  // Determine padding for scanlines
-  int padding = (4 - (width * sizeof(RGBTRIPLE)) % 4) % 4;
+    // Read infile's BITMAPINFOHEADER
+    BITMAPINFOHEADER bitmapInfoheader;
+    fread(&bitmapInfoheader, sizeof(BITMAPINFOHEADER), 1, inptr);
 
-  // Iterate over infile's scanlines
-  for (int i = 0; i < height; i++)
-  {
-      RGBTRIPLE* row = origin_pixel_array + i * width;
-      // Read row into pixel array
-      fread(row, sizeof(RGBTRIPLE), width, inptr);
+    fseek(inptr, 0, SEEK_SET);
 
-      // Skip over padding
-      fseek(inptr, padding, SEEK_CUR);
-  }
+    fseek(inptr, bitmapFileheader.bfOffBits, SEEK_SET);
 
-  swirl(origin_pixel_array, copy_pixel_array, width, height, 0.05);
+    // Get image's dimensions
+    int height = abs(bitmapInfoheader.biHeight);
+    int width = bitmapInfoheader.biWidth;
 
-  displayResult(copy_pixel_array, width, height);
+    RGBTRIPLE* pixelArray = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE));
 
-  return 0;
+    // Determine padding for scanlines
+    int padding = (4 - (width * sizeof(RGBTRIPLE)) % 4) % 4;
+
+    // Iterate over infile's scanlines in reverse order
+    for (int i = 0; i < height; i++)
+    {
+        // Calculate the offset in the pixel array for the current row
+        RGBTRIPLE* row = pixelArray + i * width;
+
+        // Read row into pixel array
+        fread(row, sizeof(RGBTRIPLE), width, inptr);
+
+        // Skip over padding
+        fseek(inptr, padding, SEEK_CUR);
+    }
+
+    RGBTRIPLE* pixelArrayCopy = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE));
+
+    if(pixelArrayCopy == NULL) {
+        // Handle the error.
+        fprintf(stderr, "Memory allocation for pixelArrayCopy failed\n");
+        exit(1);
+    }
+
+    memcpy(pixelArrayCopy, pixelArray, height * width * sizeof(RGBTRIPLE));
+
+    double swirlFactor;
+    initDefaultSwirlFactor(&swirlFactor);
+
+    swirl(pixelArray, pixelArrayCopy, width, height, swirlFactor);
+
+    displayResult(pixelArrayCopy, width, height);
+
+    return 0;
 }
