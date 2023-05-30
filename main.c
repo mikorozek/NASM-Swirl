@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "swirl.h"
 #include <SDL2/SDL.h>
 #include <stdbool.h>
@@ -75,21 +76,22 @@ void displayResult(RGBTRIPLE* pixelArray, int width, int height) {
 }
 
 
-void initDefaultSwirlFactor(double* swirlFactor)
+void updateSwirlFactor(double* swirlFactor, double newSwirlFactor) 
 {
-    *swirlFactor = 0.005;
+    *swirlFactor = newSwirlFactor;
 }
 
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("Usage: %s <imagePath>\n", argv[0]);
+        printf("Usage: %s <imagePath> <swirlFactor>\n", argv[0]);
         return 1;
     }
 
     char* inputFile = argv[1];
+    double swirlFactor = atof(argv[2]);
 
     // Open input file
     FILE *inptr = fopen(inputFile, "r");
@@ -133,20 +135,40 @@ int main(int argc, char *argv[])
         fseek(inptr, padding, SEEK_CUR);
     }
 
-    RGBTRIPLE* pixelArrayCopy = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE));
+    RGBTRIPLE* outputPixelArray = (RGBTRIPLE*)calloc(height * width, sizeof(RGBTRIPLE));
 
-    if(pixelArrayCopy == NULL) {
+    if(outputPixelArray == NULL) {
         // Handle the error.
-        fprintf(stderr, "Memory allocation for pixelArrayCopy failed\n");
+        fprintf(stderr, "Memory allocation for outputPixelArray failed\n");
         exit(1);
     }
+            
+    while (true){
 
-    double swirlFactor;
-    initDefaultSwirlFactor(&swirlFactor);
+        swirl(pixelArray, outputPixelArray, width, height, swirlFactor);
 
-    swirl(pixelArray, pixelArrayCopy, width, height, swirlFactor);
+        displayResult(outputPixelArray, width, height);
 
-    displayResult(pixelArrayCopy, width, height);
+        printf("\nWould you like to input new factor or exit? (continue/exit)\n");
+        char inputPrompt[100];
+        fgets(inputPrompt, 100, stdin);
+        inputPrompt[strcspn(inputPrompt, "\n")] = '\0';
 
+        if (strcmp(inputPrompt, "continue") == 0)
+        {
+            double newFactor;
+            printf("\nEnter the new factor value as float:\n");
+            scanf("%lf", &newFactor);
+            getchar();
+            updateSwirlFactor(&swirlFactor, newFactor);
+        } else if (strcmp(inputPrompt, "exit") == 0)
+        {
+            break;
+        } else 
+        {
+            printf("Error! Invalid command!");
+            break;
+        }
+    }
     return 0;
 }

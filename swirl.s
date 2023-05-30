@@ -65,21 +65,23 @@ pixel_loop:
         mov         rax, r8        ; Move px to rax
         xor         rdx, rdx       ; Clear rdx because rdx:rax is divided
         div         r10            ; Divide rax by r10 (width). Quotient in rax, remainder in rdx.
-        cvtsi2sd    xmm4, rdx     ; Convert remainder to double and store in xmm4
+        cvtsi2sd    xmm5, rdx     ; Convert remainder to double and store in xmm4
 
         ; Compute y = px / width
         mov         rax, r8        ; Move px to rax again
         xor         rdx, rdx       ; Clear rdx again
         div         r10            ; Divide rax by r10 (width). Quotient in rax, remainder in rdx.
-        cvtsi2sd    xmm5, rax     ; Convert quotient to double and store in xmm5
+        cvtsi2sd    xmm1, rax     ; Convert quotient to double and store in xmm5
 
         mov         rdx, r10       ; Restore the original value of rdx from r10
 
-        subsd       xmm4, xmm2
-        subsd       xmm5, xmm3
+        movsd       xmm4, xmm3
+        subsd       xmm4, xmm1
+        subsd       xmm5, xmm2
 
 
         movsd       xmm1, qword [rel zero]      ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
+        comisd      xmm5, xmm1
         jnz         not_zero_case           ; if not zero then jump to regular case
 
         movsd       xmm6, qword [rel pi]        ; move pi value to xmm6 cause we will make angle pi * 0.5 or pi * 1.5
@@ -89,13 +91,13 @@ pixel_loop:
 
         mulsd       xmm6, qword [rel dhalf]  ; we create pi/2 and pass it to original angle
 
-        jmp         width_loop_continue     ; continue the loop
+        jmp         pixel_loop_continue     ; continue the loop
 
 zerocyltz:
 
         mulsd       xmm6, qword [rel donehalf]     ; we create 3pi/2 and pass it to original angle
 
-        jmp         width_loop_continue     ; continue the loop
+        jmp         pixel_loop_continue     ; continue the loop
 
 not_zero_case:
         movsd       xmm6, xmm4              ; move xmm5, xmm4 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
@@ -136,25 +138,25 @@ not_zero_case:
         movsd       xmm6, qword [rel pi]        ; relx is lesser than zero and from pixel's y to center is bigger than zero
         subsd       xmm6, xmm1              ; we make pi - angle operation
 
-        jmp         width_loop_continue
+        jmp         pixel_loop_continue
 
 relxgtz:
         comisd      xmm4, xmm1              ; if the pixel is in the 1st quarter of UV space we leave the angle
-        jae         width_loop_continue
-        jz          width_loop_continue
+        jae         pixel_loop_continue
+        jz          pixel_loop_continue
 
         movsd       xmm1, xmm6              ; in this case the pixel is in the 4th quarter of UV space so we make 2 pi - angle
         movsd       xmm6, qword [rel pi]
         mulsd       xmm6, qword [rel dtwo]
         subsd       xmm6, xmm1
 
-        jmp         width_loop_continue
+        jmp         pixel_loop_continue
 
 relyltz:
         addsd       xmm6, qword [rel pi]
 
-width_loop_continue:
-        mulsd       xmm4, xmm4              ; we perform sqrt[(centerY)^2 + (width/2)^2)
+pixel_loop_continue:
+        mulsd       xmm4, xmm4              ; we perform sqrt[(height/2)^2 + (width/2)^2)
         mulsd       xmm5, xmm5
         addsd       xmm4, xmm5
         sqrtsd      xmm4, xmm4
