@@ -32,8 +32,4 @@
 *.app
 
 # project-specific
-main
-TestCase
-.vscode
-.DS_Store
-
+swirl

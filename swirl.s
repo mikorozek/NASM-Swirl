@@ -1,23 +1,13 @@
 section .data
-dtwo                dq 2.0
-donehalf            dq 1.5
-done                dq 1.0
-dhalf               dq 0.5
-zero                dq 0.0
-usmask              dq 0x7FFFFFFFFFFFFFFF
-pi                  dq 3.14159265358979323846
-
-
+doubleTwo           dq 2.0
+doubleOneHalf       dq 1.5
+doubleOne           dq 1.0
+doubleHalf          dq 0.5
+doubleZero          dq 0.0
+absMask             dq 0x7FFFFFFFFFFFFFFF
+piConstant          dq 3.14159265358979323846
 section .text
 global swirl
-
-; rdi - pointer to the origin pixel array
-; rsi - poitner to the copy pixel array
-; rdx - width
-; rcx - height
-; xmm0 - factor
-
-
 swirl:
         push        rbp
         mov         rbp, rsp
@@ -29,243 +19,180 @@ swirl:
         movaps      [rsp], xmm7
         sub         rsp, 16
         movaps      [rsp], xmm8
-
-; for this algorithm these registers are going to contain following values:
-; xmm1 - operation register for double precision float values, something like RAX
-; xmm2 - width/2 in double
-; xmm3 - height/2 in double
-; xmm4 - relY
-; xmm5 - relX
-; xmm6 - original angle value (result of arcus tangens)
-
-
-swirl_continue:
+        sub         rsp, 16
+        movaps      [rsp], xmm9
+        ; Calculate width/2 and height/2
         cvtsi2sd    xmm1, rdx
-        divsd       xmm1, qword [rel dtwo]
-        movsd       xmm2, xmm1              ; now xmm2 contains width/2
-
+        divsd       xmm1, qword [rel doubleTwo]
+        movsd       xmm2, xmm1
         cvtsi2sd    xmm1, rcx
-        divsd       xmm1, qword [rel dtwo]
-        movsd       xmm3, xmm1              ; now xmm3 contains centerY
-
-        mov         r9, rcx                   ; r8 is iterator, if r8 equals height - > the loop end
+        divsd       xmm1, qword [rel doubleTwo]
+        movsd       xmm3, xmm1
+        ; Calculate total pixel count (width * height)
+        mov         r9, rcx
         imul        r9, rdx
-
-        mov         r8, 0
-
-pixel_loop:
+        mov         r8, 0  ; Pixel index
+main_loop:
+        ; If we have processed all pixels, exit
         cmp         r8, r9
-        je          swirl_epilogue
-
-        ; Assumptions: r8 contains px, rdx contains width
-
-        mov         r10, rdx       ; Store the original value of rdx into r10
-
-        ; Compute x = px % width
-        mov         rax, r8        ; Move px to rax
-        xor         rdx, rdx       ; Clear rdx because rdx:rax is divided
-        div         r10            ; Divide rax by r10 (width). Quotient in rax, remainder in rdx.
-        cvtsi2sd    xmm5, rdx     ; Convert remainder to double and store in xmm4
-
-        ; Compute y = px / width
-        mov         rax, r8        ; Move px to rax again
-        xor         rdx, rdx       ; Clear rdx again
-        div         r10            ; Divide rax by r10 (width). Quotient in rax, remainder in rdx.
-        cvtsi2sd    xmm1, rax     ; Convert quotient to double and store in xmm5
-
-        mov         rdx, r10       ; Restore the original value of rdx from r10
-
+        je          end_of_swirl
+        ; Calculate x and y coordinates of current pixel
+        mov         r10, rdx  ; Preserve original width
+        mov         rax, r8  ; Current pixel index to rax
+        xor         rdx, rdx  ; Clear rdx because rdx:rax is divided
+        div         r10  ; Divide pixel index by width. Quotient in rax, remainder in rdx.
+        cvtsi2sd    xmm5, rdx  ; Convert X to double and store in xmm5
+        ; Compute y coordinate
+        mov         rax, r8  ; Pixel index to rax
+        xor         rdx, rdx  ; Clear rdx
+        div         r10  ; Divide pixel index by width. Quotient in rax, remainder in rdx.
+        cvtsi2sd    xmm1, rax  ; Convert Y to double and store in xmm4
+        mov         rdx, r10  ; Restore width from r10
+        ; Compute relative X and Y (distance from center)
         movsd       xmm4, xmm3
         subsd       xmm4, xmm1
         subsd       xmm5, xmm2
-
-
-        movsd       xmm1, qword [rel zero]      ; if distance from column to center is 0, we have to make different label for that case - we stay in this label, better code
+        ; Zero-case handling: X is exactly at the center
+        movsd       xmm1, qword [rel doubleZero]
         comisd      xmm5, xmm1
-        jnz         not_zero_case           ; if not zero then jump to regular case
-
-        movsd       xmm6, qword [rel pi]        ; move pi value to xmm6 cause we will make angle pi * 0.5 or pi * 1.5
-
-        comisd      xmm4, xmm1              ; this is zero case so zero case distance from column to center lesser than 0 so its down side
-        jb          zerocyltz
-
-        mulsd       xmm6, qword [rel dhalf]  ; we create pi/2 and pass it to original angle
-
-        jmp         pixel_loop_continue     ; continue the loop
-
-zerocyltz:
-
-        mulsd       xmm6, qword [rel donehalf]     ; we create 3pi/2 and pass it to original angle
-
-        jmp         pixel_loop_continue     ; continue the loop
-
-not_zero_case:
-        movsd       xmm6, xmm4              ; move xmm5, xmm4 to xmm6, xmm7 cause we have to make absolute values so we can pass it to arctan
+        jnz         handle_non_zero_case
+        ; In zero-case, adjust angle depending on which half of the image we're in
+        movsd       xmm6, qword [rel piConstant]
+        comisd      xmm4, xmm1
+        jb          zero_case_y_lt_center
+        ; Upper half of image, angle = pi/2
+        mulsd       xmm6, qword [rel doubleHalf]
+        jmp         continue_main_loop
+zero_case_y_lt_center:
+        ; Lower half of image, angle = 3*pi/2
+        mulsd       xmm6, qword [rel doubleOneHalf]
+        jmp         continue_main_loop
+handle_non_zero_case:
+        ; Compute original angle based on relative X and Y
+        movsd       xmm6, xmm4
         movsd       xmm7, xmm5
-
-        movsd       xmm8, qword [rel usmask]
-
-        subsd       xmm8, qword [rel done]
-
-        andpd       xmm6, xmm8    ; we take absolute value of the xmm4 and xmm5
-        andpd       xmm7, xmm8
-
+        movsd       xmm8, qword [rel absMask]
+        subsd       xmm8, qword [rel doubleOne]
+        andpd       xmm6, xmm8  ; Absolute value of Y
+        andpd       xmm7, xmm8  ; Absolute value of X
+        ; Compute arc tangent of Y/X ratio, this gives the angle
         sub         rsp, 32
-
         movsd       qword [rsp], xmm6
         movsd       qword [rsp + 16], xmm7
-
-        fld         qword [rsp]               ; we load centerY and width/2 to the register stack so we can perform fpatan
+        fld         qword [rsp]
         fld         qword [rsp + 16]
-
-        fpatan                              ; function that is responsible for counting the arcus tangens
-
-        fstp        qword [rsp]             ; we push the value from ST(0) that is the result of FPATAN
-
-        movsd       xmm6, qword [rsp]       ; now we have the original angle value in radians in xmm6
-
+        fpatan
+        fstp        qword [rsp]  ; Store result of fpatan
+        movsd       xmm6, qword [rsp]  ; Move fpatan result to xmm6
         add         rsp, 32
-
-        comisd      xmm5, xmm1              ; if relx is greater than 0 it will be 1st and 4th quarters of UV space
-
-        ja          relxgtz
-
-        comisd      xmm4, xmm1              ; if rely is lesser than 0 it will be the 3rd quarter of UV space
-
-        jb          relyltz
-
-        movsd       xmm1, xmm6              ; the case that is left is the 2nd quarter of UV space
-        movsd       xmm6, qword [rel pi]        ; relx is lesser than zero and from pixel's y to center is bigger than zero
-        subsd       xmm6, xmm1              ; we make pi - angle operation
-
-        jmp         pixel_loop_continue
-
-relxgtz:
-        comisd      xmm4, xmm1              ; if the pixel is in the 1st quarter of UV space we leave the angle
-        jae         pixel_loop_continue
-        jz          pixel_loop_continue
-
-        movsd       xmm1, xmm6              ; in this case the pixel is in the 4th quarter of UV space so we make 2 pi - angle
-        movsd       xmm6, qword [rel pi]
-        mulsd       xmm6, qword [rel dtwo]
+        ; Determine the quarter of the UV space we are in, and adjust angle accordingly
+        comisd      xmm5, xmm1  ; If X > 0, it will be 1st or 4th quarter
+        ja          handle_x_gt_zero
+        comisd      xmm4, xmm1  ; If Y < 0, it will be the 3rd quarter
+        jb          handle_y_lt_zero
+        ; If not 1st, 3rd or 4th quarter, it will be the 2nd quarter (X < 0, Y >= 0)
+        movsd       xmm1, xmm6
+        movsd       xmm6, qword [rel piConstant]
         subsd       xmm6, xmm1
-
-        jmp         pixel_loop_continue
-
-relyltz:
-        addsd       xmm6, qword [rel pi]
-
-pixel_loop_continue:
-        mulsd       xmm4, xmm4              ; we perform sqrt[(height/2)^2 + (width/2)^2)
+        jmp         continue_main_loop
+handle_x_gt_zero:
+        ; If Y >= 0, it's 1st quarter
+        comisd      xmm4, xmm1
+        jae         continue_main_loop
+        jz          continue_main_loop
+        ; If not 1st quarter, it's 4th quarter (X > 0, Y < 0)
+        movsd       xmm1, xmm6
+        movsd       xmm6, qword [rel piConstant]
+        mulsd       xmm6, qword [rel doubleTwo]
+        subsd       xmm6, xmm1
+        jmp         continue_main_loop
+handle_y_lt_zero:
+        ; 3rd quarter (X <= 0, Y < 0)
+        addsd       xmm6, qword [rel piConstant]
+continue_main_loop:
+        ; Compute distance to center and adjust angle with swirl factor
+        mulsd       xmm4, xmm4
         mulsd       xmm5, xmm5
         addsd       xmm4, xmm5
-        sqrtsd      xmm4, xmm4
-
-        movsd       xmm5, qword [rel dtwo]
+        sqrtsd      xmm4, xmm4  ; xmm4 = sqrt(xmm4), distance to center
+        ; Compute new angle and calculate corresponding source pixel
+        movsd       xmm5, qword [rel doubleTwo]
         mulsd       xmm5, xmm5
-        divsd       xmm5, qword [rel pi]
+        divsd       xmm5, qword [rel piConstant]
         movsd       xmm8, xmm4
         mulsd       xmm8, xmm0
         addsd       xmm8, xmm5
-        movsd       xmm7, qword [rel done]
+        movsd       xmm7, qword [rel doubleOne]
         divsd       xmm7, xmm8
         addsd       xmm6, xmm7
-
-        sub         rsp, 16                  ; calculate the cos of the new angle
+        ; Calculate source x using cos(new angle)
+        sub         rsp, 16
         movsd       [rsp], xmm6
         fld         qword [rsp]
         fcos
         fstp        qword [rsp]
         movsd       xmm7, qword [rsp]
         add         rsp, 16
-
+        ; Calculate source y using sin(new angle)
         mulsd       xmm7, xmm4
-        addsd       xmm7, qword [rel dhalf]
-        roundsd     xmm7, xmm7, 1           ; we store the integer value of src x in the r10
-        cvttsd2si   r10, xmm7
-
-        sub         rsp, 16                 ; calculate the sin of the new angle
+        addsd       xmm7, qword [rel doubleHalf]
+        roundsd     xmm7, xmm7, 1
+        sub         rsp, 16
         movsd       [rsp], xmm6
         fld         qword [rsp]
         fsin
         fstp        qword [rsp]
-        movsd       xmm7, qword [rsp]
+        movsd       xmm8, qword [rsp]
         add         rsp, 16
-
-        mulsd       xmm7, xmm4
-        addsd       xmm7, qword [rel dhalf]
-        roundsd     xmm7, xmm7, 1
-        cvttsd2si   r11, xmm7
-
-        cvttsd2si   r12, xmm2
-        cvttsd2si   r13, xmm3
-
-        add         r10, r12
-        add         r11, r13
-        mov         r12, r11
-        mov         r11, rcx
-        sub         r11, r12
-
-        cmp         r10, 0
-        jl          srcxltz
-
-        cmp         r10, rdx
-        jge         srcxgetw
-
-        jmp         srcycond
-
-srcxltz:
-        mov         r10, 0
-        jmp         srcycond
-
-srcxgetw:
-        mov         r10, rdx
-        sub         r10, 1
-
-srcycond:
-        cmp         r11, 0
-        jl          srcyltz
-
-        cmp         r11, rcx
-        jge         srcygeth
-
-        jmp         pixel_loop_finish
-
-srcyltz:
-        mov         r11, 0
-        jmp         pixel_loop_finish
-
-srcygeth:
-        mov         r11, rcx
-        sub         r11, 1
-
-pixel_loop_finish:
+        mulsd       xmm8, xmm4
+        addsd       xmm8, qword [rel doubleHalf]
+        roundsd     xmm8, xmm8, 1
+        ; Adjust source x and y with center coordinates
+        addsd       xmm8, xmm3
+        addsd       xmm7, xmm2
+        cvtsi2sd    xmm9, rcx         
+        
+        subsd       xmm9, xmm8
+        movsd       xmm8, qword [rel doubleZero]
+        maxsd       xmm9, xmm8
+        cvtsi2sd    xmm8, rcx
+        subsd       xmm8, [rel doubleOne]
+        minsd       xmm9, xmm8
+        cvttsd2si   r11, xmm9
+        movsd       xmm8, qword [rel doubleZero]
+        maxsd       xmm7, xmm8
+        cvtsi2sd    xmm8, rdx
+        subsd       xmm8, [rel doubleOne]
+        minsd       xmm7, xmm8
+        cvttsd2si   r10, xmm7
+finish_pixel_handling:
+        ; Convert 2D coordinates to 1D and move source pixel to destination
         mov         rax, r11
         imul        rax, rdx
         add         rax, r10
         imul        rax, 3
-
         mov         r10, rax
-
-        mov         ax, word [rdi + r10]
-        mov         r11b, byte [rdi + r10 + 2]
-
-        mov         word [rsi], ax
-        mov         byte [rsi + 2], r11b
+        mov         al, byte [rdi + r10]
+        mov         byte[rsi], al
+        mov         al, byte [rdi + r10 + 1]
+        mov         byte[rsi + 1], al
+        mov         al, byte [rdi + r10 + 2]
+        mov         byte[rsi + 2], al
+        ; Move to the next pixel
         add         rsi, 3
-
         inc         r8
-        jmp         pixel_loop
-
-swirl_epilogue:
-        movaps      xmm8, [rsp]
+        jmp         main_loop
+end_of_swirl:
+        ; Restore registers and return
+        add         rsp, 16
+        movaps      xmm9, [rsp]
+        add         rsp, 16
+         movaps      xmm8, [rsp]
         add         rsp, 16
         movaps      xmm7, [rsp]
         add         rsp, 16
         movaps      xmm6, [rsp]
         pop         r13
         pop         r12
-        pop         rbx
-        mov         rsp, rbp
-        pop         rbp
+        leave
         ret
